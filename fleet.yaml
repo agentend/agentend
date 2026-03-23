@@ -1,0 +1,258 @@
+# Agentend Fleet Configuration
+# Default configuration for agent fleet orchestration
+
+# Infrastructure Connectors Configuration
+# Connectors provide unified access to databases, caches, logging platforms,
+# and message queues. All credentials should be provided via environment variables.
+# connectors:
+#   - name: main_db
+#     type: postgresql
+#     connection_string: ${DATABASE_URL}
+#     options:
+#       pool_size: 10
+#       max_overflow: 20
+#
+#   - name: app_cache
+#     type: redis_cache
+#     connection_string: ${REDIS_URL}
+#
+#   - name: logs
+#     type: stdout_log
+#
+#   - name: file_logs
+#     type: file_log
+#     options:
+#       path: /var/log/agentend.log
+#
+#   - name: task_queue
+#     type: memory_queue
+
+# Fleet Configuration
+fleet:
+  name: default
+  description: Default agentend fleet configuration
+
+  # Worker pools for task distribution
+  workers:
+    # Classify incoming requests by intent/category
+    classify:
+      count: 1
+      model: gpt-4-turbo
+      timeout: 30
+      retry_policy: exponential_backoff
+
+    # Extract structured data from unstructured input
+    extract:
+      count: 2
+      model: gpt-4-turbo
+      timeout: 60
+      retry_policy: exponential_backoff
+
+    # Verify facts and outputs
+    verify:
+      count: 1
+      model: gpt-4-turbo
+      timeout: 45
+      retry_policy: exponential_backoff
+
+    # Generate summaries and synthetic content
+    summarize:
+      count: 2
+      model: gpt-3.5-turbo
+      timeout: 60
+      retry_policy: exponential_backoff
+
+    # Generate responses and content
+    generate:
+      count: 4
+      model: gpt-4-turbo
+      timeout: 120
+      retry_policy: exponential_backoff
+
+    # Handle tool/function calls
+    tool_call:
+      count: 2
+      model: gpt-4-turbo
+      timeout: 90
+      retry_policy: exponential_backoff
+
+# Memory Configuration
+memory:
+  # Session-based memory (short-term conversation context)
+  session:
+    enabled: true
+    type: redis
+    ttl: 3600  # 1 hour
+    max_size_mb: 10
+    strategy: fifo
+
+  # Semantic memory (vector embeddings for similarity search)
+  semantic:
+    enabled: true
+    type: pgvector
+    vector_size: 1536  # OpenAI embedding size
+    similarity_threshold: 0.7
+    consolidation_schedule: daily
+
+  # Memory consolidation (summarize and archive)
+  consolidation:
+    enabled: true
+    schedule: daily
+    archive_after_days: 30
+    compression_ratio: 0.8
+
+# MCP (Model Context Protocol) Configuration
+mcp:
+  enabled: false
+  servers: []
+  # Example server configuration:
+  # - name: example-server
+  #   uri: stdio:///path/to/server
+  #   args: ["--debug"]
+  #   env:
+  #     PARAM: value
+  timeout: 30
+  max_connections: 10
+
+# Agent-to-Agent Communication
+a2a:
+  enabled: false
+  protocol: grpc
+  timeout: 30
+  retry_policy: exponential_backoff
+  max_hops: 3
+
+# Authentication Configuration
+auth:
+  enabled: false
+  provider: none  # Options: none, jwt, oauth2, api_key
+  jwt:
+    secret: ""
+    algorithm: HS256
+  oauth2:
+    provider_url: ""
+    client_id: ""
+    client_secret: ""
+  api_key:
+    header: X-API-Key
+    validation_endpoint: ""
+
+# Budget/Rate Limiting Configuration
+budgets:
+  enabled: false
+
+  # Token usage budgets
+  tokens:
+    daily_limit: null
+    hourly_limit: null
+    per_request_limit: null
+
+  # Cost tracking (optional)
+  costs:
+    enabled: false
+    daily_limit: null
+    alert_threshold: 0.8
+
+  # Request rate limiting
+  requests:
+    per_minute: null
+    per_second: null
+    burst_size: null
+
+# Cache Configuration
+cache:
+  enabled: true
+  type: redis
+  default_ttl: 300  # 5 minutes
+
+  # Cache policies for different content types
+  policies:
+    # Tool/function results
+    tool_results:
+      ttl: 600
+      enabled: true
+
+    # LLM responses
+    llm_responses:
+      ttl: 300
+      enabled: true
+
+    # Database queries
+    database_queries:
+      ttl: 1800
+      enabled: true
+
+    # Semantic search results
+    semantic_search:
+      ttl: 3600
+      enabled: true
+
+  # Cache invalidation
+  invalidation:
+    pattern_based: true
+    event_based: true
+
+# Guardrails Configuration
+guardrails:
+  enabled: true
+
+  # Input validation
+  input_validation:
+    enabled: true
+    rules:
+      max_length: 10000
+      min_length: 1
+      blocked_patterns: []
+      sanitize_html: true
+
+  # Output safety
+  output_safety:
+    enabled: true
+    rules:
+      check_pii: true
+      check_toxicity: true
+      filter_nsfw: false
+      redact_sensitive: true
+
+  # Rate limiting by user
+  user_rate_limiting:
+    enabled: false
+    requests_per_minute: null
+    requests_per_hour: null
+
+  # Content filtering
+  content_filtering:
+    enabled: false
+    categories: []
+
+# Logging and Observability
+observability:
+  log_level: INFO
+
+  # OpenTelemetry integration
+  tracing:
+    enabled: true
+    exporter: console  # Options: console, jaeger, datadog, honeycomb
+    sampler: always  # Options: always, never, probability (0-1)
+
+  # Metrics collection
+  metrics:
+    enabled: true
+    include_histogram: true
+    include_latency: true
+
+  # Request/response logging
+  request_logging:
+    enabled: true
+    log_request_body: false
+    log_response_body: false
+
+# Feature Flags
+features:
+  streaming: true
+  multi_modal: true
+  tool_calling: true
+  function_calling: true
+  parallel_tool_calls: true
+  vision: true
+  code_execution: false

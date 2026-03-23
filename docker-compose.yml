@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  agentend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://agentend:agentend@postgres:5432/agentend
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    networks:
+      - agentend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentend-postgres
+    environment:
+      POSTGRES_USER: agentend
+      POSTGRES_PASSWORD: agentend
+      POSTGRES_DB: agentend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agentend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentend-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - agentend-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agentend-ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - agentend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "11434:11434"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_models:
+    driver: local
+
+networks:
+  agentend-network:
+    driver: bridge
